@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ko‘makAI</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f6fb;color:#172033;font-family:Arial,sans-serif}.wrap{max-width:720px;margin:auto;padding:20px}.card{background:white;border-radius:18px;padding:18px;box-shadow:0 5px 22px #17203312;margin:14px 0}h1{margin:4px 0;color:#2456a6;text-align:center}p{line-height:1.5}.tag{text-align:center;color:#52627a;margin-top:4px}video{width:100%;background:#111;border-radius:14px;max-height:420px;object-fit:cover}.buttons{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}button{border:0;border-radius:12px;padding:13px 16px;font-size:16px;font-weight:700;background:#2456a6;color:white;flex:1;min-width:130px}button.secondary{background:#e8eef8;color:#1c3764}button:disabled{opacity:.5}.status{font-size:14px;color:#53627a;margin-top:10px}.result{font-size:20px;font-weight:700;color:#173f7a;min-height:54px}.hint{font-size:13px;color:#64748b}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#e2a23b;margin-right:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>Ko‘makAI</h1>
+    <div class="tag">Atrofingizdagi buyumlarni ovozli tanishga yordamchi</div>
+  </div>
+  <div class="card">
+    <h2>Kamera</h2>
+    <video id="video" autoplay playsinline muted></video>
+    <div class="buttons">
+      <button id="cameraBtn">Kamerani yoqish</button>
+      <button id="detectBtn" class="secondary" disabled>Buyumlarni aniqlash</button>
+    </div>
+    <div id="status" class="status"><span class="dot"></span>Kamera hali yoqilmagan.</div>
+  </div>
+  <div class="card">
+    <h2>Aniqlangan buyumlar</h2>
+    <div id="result" class="result">Hozircha buyum aniqlanmadi.</div>
+    <div class="buttons">
+      <button id="speakBtn" class="secondary" disabled>Ovoz chiqarib aytish</button>
+    </div>
+    <p class="hint">Eslatma: bu prototip keng tarqalgan buyumlarni taniydi. Natijani muhim vaziyatlarda albatta tekshiring.</p>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+<script>
+const video=document.getElementById('video'), cameraBtn=document.getElementById('cameraBtn'), detectBtn=document.getElementById('detectBtn'), speakBtn=document.getElementById('speakBtn'), statusEl=document.getElementById('status'), resultEl=document.getElementById('result');
+let stream=null, model=null, lastText='';
+const uz={person:'odam',bicycle:'velosiped',car:'avtomobil',motorcycle:'mototsikl',airplane:'samolyot',bus:'avtobus',train:'poyezd',truck:'yuk mashinasi',boat:'qayiq','traffic light':'svetofor','fire hydrant':'yong‘in gidranti','stop sign':'to‘xtash belgisi',bench:'o‘rindiq',bird:'qush',cat:'mushuk',dog:'it',horse:'ot',sheep:'qo‘y',cow:'sigir',elephant:'fil',bear:'ayiq',zebra:'zebra',giraffe:'jirafa',backpack:'ryukzak',umbrella:'soyabon',handbag:'sumka',tie:'galstuk',suitcase:'chamadon',frisbee:'frisbi',skis:'chang‘i',snowboard:'snoubord','sports ball':'to‘p',kite:'varrak','baseball bat':'beysbol tayoqchasi','baseball glove':'beysbol qo‘lqopi',skateboard:'skeytbord',surfboard:'serf doskasi','tennis racket':'tennis raketkasi',bottle:'butilka','wine glass':'stakan',cup:'piyola',fork:'sanchqi',knife:'pichoq',spoon:'qoshiq',bowl:'kosa',banana:'banan',apple:'olma',sandwich:'sendvich',orange:'apelsin',broccoli:'brokkoli',carrot:'sabzi','hot dog':'xot-dog',pizza:'pitsa',donut:'ponchik',cake:'tort',chair:'stul',couch:'divan','potted plant':'gultuvakdagi o‘simlik',bed:'karavot','dining table':'ovqatlanish stoli',toilet:'unitaz',tv:'televizor',laptop:'noutbuk',mouse:'sichqoncha',remote:'pult',keyboard:'klaviatura','cell phone':'mobil telefon',microwave:'mikroto‘lqinli pech',oven:'duxovka',toaster:'toster',sink:'rakovina',refrigerator:'muzlatkich',book:'kitob',clock:'soat',vase:'vaza',scissors:'qaychi','teddy bear':'yumshoq ayiqcha','hair drier':'fen',toothbrush:'tish cho‘tkasi'};
+function say(text){if(!('speechSynthesis' in window)){statusEl.textContent='Bu brauzer ovoz chiqarishni qo‘llamaydi.';return;} speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='uz-UZ';u.rate=0.9;speechSynthesis.speak(u);}
+cameraBtn.onclick=async()=>{try{statusEl.textContent='Kamera ochilmoqda...';stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});video.srcObject=stream;await video.play();cameraBtn.textContent='Kamera yoqildi';detectBtn.disabled=false;statusEl.textContent='Kamera tayyor. Endi buyumlarni aniqlash tugmasini bosing.';}catch(e){statusEl.textContent='Kamera ochilmadi. Brauzer ruxsatini tekshiring: '+e.message;}};
+detectBtn.onclick=async()=>{try{detectBtn.disabled=true;statusEl.textContent='AI modeli yuklanmoqda... Bir oz kuting.';if(!model)model=await cocoSsd.load();statusEl.textContent='Buyumlar aniqlanmoqda...';const predictions=await model.detect(video);if(!predictions.length){lastText='Kamerada taniladigan buyum topilmadi.';resultEl.textContent=lastText;}else{const names=[...new Set(predictions.slice(0,5).map(p=>uz[p.class]||p.class))];lastText='Kamerada: '+names.join(', ')+'.';resultEl.textContent=lastText;}speakBtn.disabled=false;statusEl.textContent='Tayyor. Natijani ovozda eshitish uchun tugmani bosing.';}catch(e){statusEl.textContent='Aniqlashda xatolik: internetni tekshirib qayta urinib ko‘ring.';console.error(e);}finally{detectBtn.disabled=false;}};
+speakBtn.onclick=()=>{if(lastText)say(lastText);};
+</script>
+</body>
+</html>
