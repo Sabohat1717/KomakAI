@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ko‘makAI</title>
+<style>
+:root{font-family:Arial,sans-serif;color:#172b4d;background:#eef4fb}*{box-sizing:border-box}body{margin:0;padding:18px}.wrap{max-width:760px;margin:auto}.card{background:white;border-radius:22px;padding:20px;margin:14px 0;box-shadow:0 5px 20px #18345a12}h1{margin:4px 0 8px;color:#1857a6}h2{font-size:21px}.muted{color:#5d6b82;line-height:1.5}.btn{border:0;border-radius:13px;padding:14px 17px;background:#1857a6;color:white;font-weight:bold;font-size:16px;margin:5px;cursor:pointer}.btn:disabled{opacity:.5}.secondary{background:#e8f1ff;color:#174b8c}.status{padding:12px;border-radius:12px;background:#e9f6ff;margin:12px 0;line-height:1.5}video{width:100%;max-height:440px;background:#111;border-radius:16px;display:block}canvas{display:none}.result{font-size:20px;font-weight:bold;line-height:1.5}.small{font-size:13px;color:#65748b}#busy{font-weight:bold}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+</head>
+<body><main class="wrap">
+<section class="card"><h1>🔎 Ko‘makAI</h1><div class="muted">Ko‘zi ojiz va zaif ko‘ruvchi insonlar uchun ovozli yordamchi prototipi</div>
+<div id="status" class="status" role="status">AI modeli yuklanmoqda. Internetga ulangan holda kuting…</div>
+<button id="cameraBtn" class="btn" disabled>Kamerani yoqish</button><button id="stopBtn" class="btn secondary" disabled>Kamerani to‘xtatish</button>
+<video id="video" autoplay playsinline muted></video><canvas id="canvas"></canvas>
+<div style="margin-top:12px"><button id="detectBtn" class="btn" disabled>Buyumlarni aniqlash</button><button id="speakBtn" class="btn secondary" disabled>Natijani ovozda aytish</button></div>
+<div id="result" class="result" aria-live="polite">Aniqlash natijasi shu yerda ko‘rinadi.</div>
+<div class="small">Model COCO-SSD: odam, stul, piyola, idish, kitob, telefon kabi ayrim tanish obyektlarni aniqlaydi. Barcha buyumlarni taniy olmaydi. Bu prototip xavfsiz yo‘l ko‘rsatish uchun mo‘ljallanmagan.</div>
+</section></main>
+<script>
+(() => {
+ const statusEl=document.getElementById('status'), video=document.getElementById('video'), canvas=document.getElementById('canvas'), ctx=canvas.getContext('2d');
+ const cameraBtn=document.getElementById('cameraBtn'), stopBtn=document.getElementById('stopBtn'), detectBtn=document.getElementById('detectBtn'), speakBtn=document.getElementById('speakBtn'), resultEl=document.getElementById('result');
+ let model=null, stream=null, lastText='';
+ const uz={person:'odam',bicycle:'velosiped',car:'mashina',motorcycle:'mototsikl',airplane:'samolyot',bus:'avtobus',train:'poyezd',truck:'yuk mashinasi',boat:'qayiq',traffic_light:'svetofor',fire_hydrant:'yong‘in gidranti',stop_sign:'to‘xtash belgisi',bench:'o‘rindiq',bird:'qush',cat:'mushuk',dog:'it',horse:'ot',sheep:'qo‘y',cow:'sigir',elephant:'fil',bear:'ayiq',zebra:'zebra',giraffe:'jirafa',backpack:'ryukzak',umbrella:'soyabon',handbag:'sumka',tie:'galstuk',suitcase:'chamadon', frisbee:'frisbi',skis:'chang‘i',snowboard:'snoubord',sports_ball:'to‘p',kite:'varrak',baseball_bat:'beysbol tayoqchasi',baseball_glove:'beysbol qo‘lqopi',skateboard:'skatebord',surfboard:'serfing taxtasi',tennis_racket:'tennis raketkasi',bottle:'butilka',wine_glass:'stakan',cup:'piyola',fork:'sanchqi',knife:'pichoq',spoon:'qoshiq',bowl:'kosa',banana:'banan',apple:'olma',sandwich:'sendvich',orange:'apelsin',broccoli:'brokkoli',carrot:'sabzi',hot_dog:'hot-dog',pizza:'pitsa',donut:'ponchik',cake:'tort',chair:'stul',couch:'divan',potted_plant:'gultuvakdagi o‘simlik',bed:'karavot',dining_table:'ovqat stoli',toilet:'unitaz',tv:'televizor',laptop:'noutbuk',mouse:'sichqoncha',remote:'pult',keyboard:'klaviatura',cell_phone:'mobil telefon',microwave:'mikroto‘lqinli pech',oven:'duhovka',toaster:'toster',sink:'rakovina',refrigerator:'muzlatkich',book:'kitob',clock:'soat',vase:'vaza',scissors:'qaychi',teddy_bear:'yumshoq ayiqcha',hair_drier:'fen',toothbrush:'tish cho‘tkasi'};
+ function say(text){if(!('speechSynthesis' in window)){statusEl.textContent='Bu brauzer ovoz chiqarishni qo‘llamaydi.';return;}speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='uz-UZ';u.rate=0.9;speechSynthesis.speak(u);}
+ async function loadModel(){try{if(!window.tf||!window.cocoSsd)throw new Error('AI kutubxonalari yuklanmadi. Internetni tekshiring.');await tf.ready();model=await cocoSsd.load();statusEl.textContent='AI modeli tayyor. Endi kamerani yoqing.';cameraBtn.disabled=false;}catch(e){statusEl.textContent='AI modelini yuklab bo‘lmadi: '+e.message+'. Sahifani internet bilan qayta oching.';}}
+ cameraBtn.addEventListener('click',async()=>{try{if(!navigator.mediaDevices?.getUserMedia)throw new Error('Kamera uchun HTTPS sahifasini Chrome’da oching.');stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});video.srcObject=stream;await video.play();stopBtn.disabled=false;detectBtn.disabled=false;statusEl.textContent='Kamera yoqildi. Buyumni kameraga ko‘rsating va aniqlashni bosing.';}catch(e){statusEl.textContent='Kamera ochilmadi: '+e.message+' Kamera ruxsatini tekshiring.';}});
+ stopBtn.addEventListener('click',()=>{if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;video.srcObject=null;stopBtn.disabled=true;detectBtn.disabled=true;});
+ detectBtn.addEventListener('click',async()=>{if(!model){statusEl.textContent='AI modeli hali tayyor emas.';return;}if(!stream||!video.videoWidth){statusEl.textContent='Avval kamerani yoqing.';return;}try{statusEl.textContent='Buyumlar aniqlanmoqda…';canvas.width=video.videoWidth;canvas.height=video.videoHeight;ctx.drawImage(video,0,0);const predictions=await model.detect(canvas);const good=predictions.filter(p=>p.score>=0.45).sort((a,b)=>b.score-a.score);if(!good.length){lastText='Buyum aniqlanmadi. Kamerani yaqinroq tutib, yorug‘likni yaxshilang.';resultEl.textContent=lastText;}else{const names=[...new Set(good.slice(0,5).map(p=>uz[p.class]||p.class))];lastText='Aniqlandi: '+names.join(', ')+'.';resultEl.textContent=lastText+' (ishonchlilik taxminiy)';}speakBtn.disabled=false;statusEl.textContent='Tahlil tugadi.';}catch(e){statusEl.textContent='Aniqlashda xatolik: '+e.message;}});
+ speakBtn.addEventListener('click',()=>{if(lastText)say(lastText);});
+ loadModel();
+})();
+</script></body></html>
